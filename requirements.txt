@@ -8,5 +8,5 @@ faiss-cpu
 sentence-transformers
 python-dotenv
 beautifulsoup4
-PIL
-Pytesseract
+Pillow
+pytesseract
