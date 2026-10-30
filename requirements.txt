@@ -10,3 +10,4 @@ python-dotenv
 beautifulsoup4
 Pillow
 pytesseract
+rank_bm25
