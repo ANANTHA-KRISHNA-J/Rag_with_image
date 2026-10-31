@@ -37,7 +37,7 @@ with st.sidebar:
         st.markdown(body="OR",width="stretch")
     #IMAGE
         # st.title("Upload Image")
-        uploaded_img = st.file_uploader(label="Upload Your Image for Image extraction",accept_multiple_files=True,type=["png","jpeg"])
+        uploaded_img = st.file_uploader(label="Upload Your Image for text extraction",accept_multiple_files=True,type=["png","jpeg"])
 
         # if uploaded_img:
         #     assimple_text = load_img_to_text(image_path=uploaded_img)
