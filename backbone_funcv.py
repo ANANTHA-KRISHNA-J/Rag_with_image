@@ -12,17 +12,16 @@ from PIL import Image
 import pytesseract
 
 load_dotenv()
-
-
-
-def load_img_to_text(image_path:str)->list:
-    texts_on_images = []
+def load_img_to_text(image_path:str,storage:list)->list:
+    # texts_on_images = []
     for i in image_path:
         img = Image.open(i)
         grey_scale = img.convert("L")
-        to_text = texts_on_images.append(pytesseract.image_to_string(grey_scale))
+        extracted = pytesseract.image_to_string(grey_scale).strip()
+        if extracted:
+            storage.append(extracted)
     # return texts_on_images
-    return "\n\n".join(texts_on_images)
+    return "\n\n".join(storage),len(storage)
 
 # def load_img (path:str):
 #     loading_image = UnstructuredImageLoader(file_path=path)
@@ -59,8 +58,11 @@ apikey = os.getenv("GEMINI_API_KEY")
 client = genai.Client(api_key=apikey)
 # chat_history = []
 
-config_=types.GenerateContentConfig(temperature=0.6,system_instruction='''You are an Rag Answering bot, I will provide you real query, 5 chunks lists related to that query from an vector database 
-    i want you to analyze those list chunks and give a clear comprehensive output for the user, Let the output be not more than 3 sentences of text,ignore /n and \\n as sometime they may come from pdf.''')
+config_=types.GenerateContentConfig(temperature=0.6,system_instruction='''You are an Rag Answering bot, I will provide you real query, some chunks lists related to that query from an vector database 
+    i want you to analyze those list chunks and give a clear comprehensive output for the user,
+                                     Let the output be not more than 3 sentences of text,
+                                    if my input is an python error explain the error as a non-tech human understandable format,
+                                     ignore /n and \\n as sometime they may come from pdf.''')
 
 flash_35 = "gemini-3.5-flash-lite"
 flash_25L = "gemini-2.5-flash-lite"
@@ -82,10 +84,15 @@ def reform_question(userquestion:str,chat_history:list)->str:
             return stephneys_reformed_question.text
         else:
             return f'Unexpected Error Occured {e}'
+        
+def error_explainer(error:str)->str:
+    config_error = types.GenerateContentConfig(temperature=0.6,system_instruction='''You are a python error analyser who reads and understand python errors and give a clear cut understandable output for cause of error and steps to solve it, in minimum sentence''')
+    e_Message = f'''Explain this python or streamlit error and steps to rectify it in 2 lines, Error : {error}'''
+    chat = client.chats.create(model=flash_35,config=config_error)
+    return chat.send_message(message=e_Message).text
 
 def query_with_llm(user_query:str,vectordb:list[float],semanted:list,chat_history)->str:
     try:
-        chat = client.chats.create(model=flash_35,config=config_)
         vectorsearch = vectordb.as_retriever(search_kwargs={"search_type":"similarity","k":5})
         bm25 = BM25Retriever.from_texts(semanted)
         hybrid_searcher = EnsembleRetriever(retrievers=[vectorsearch,bm25],weights=[0.7,0.3],c=65)
@@ -97,6 +104,7 @@ def query_with_llm(user_query:str,vectordb:list[float],semanted:list,chat_histor
             query = reform_question(user_query,chat_history)
         else:
             query = user_query
+        chat = client.chats.create(model=flash_35,config=config_)    
         messages = [f'''Quey :{query} \n Chunks :{page_content_lst}''']
         response = chat.send_message(message=messages).text
         chat_history.append({'user':query,'bot':response})
@@ -104,14 +112,14 @@ def query_with_llm(user_query:str,vectordb:list[float],semanted:list,chat_histor
         return response
     except Exception as e:
         if "503" in str(e):
-            print("503 Error occured, cycling the stepney model")
+            print("503 Error occured, cycling the secondary backup model")
             stepney_chat = client.chats.create(model=flash_25L,config=config_)
             stepney_responce = stepney_chat.send_message(message=messages).text
             chat_history.append({'user': query, 'bot': stepney_responce})
             page_content_lst.clear()
             return stepney_responce
         else:
-            return f'Unexpected Error Occured {e}'
+            return error_explainer(e)
 #chat st session
 def webloader(link:str):
     webload = WebBaseLoader(web_path=link,verify_ssl=True,requests_per_second=3,raise_for_status=1)
@@ -120,6 +128,7 @@ def webloader(link:str):
         webloaded_contents.append(chunks)
     scraped = webloaded_contents[0]
     return scraped
+
 
 def recursive_conversation(real_vector_db,seman_chunker):
     chat=True
@@ -131,7 +140,7 @@ def recursive_conversation(real_vector_db,seman_chunker):
             print('Exiting keenly')
             chat=False
             break
-
+    
 def main():
     userinp = input("Enter your Question or a link : ")
     if userinp.startswith("http"):
@@ -149,7 +158,6 @@ def main():
     # hybrid(real_vector_db,seman_chunker)
     print(recursive_conversation(real_vector_db,seman_chunker))
     # print(query_with_llm(userinp,real_vector_db,seman_chunker))
-
 
 if __name__ =='__main__':
     main()
