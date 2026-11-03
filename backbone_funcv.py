@@ -131,11 +131,12 @@ def webloader(link:str):
 
 
 def recursive_conversation(real_vector_db,seman_chunker):
+    chat_history = []
     chat=True
     while chat==True:
         user_question = input('Your Question [type exit to close]: ')
         if 'exit' not in user_question:
-            print(query_with_llm(user_question,real_vector_db,seman_chunker))
+            print(query_with_llm(user_question,real_vector_db,seman_chunker,chat_history))
         else:
             print('Exiting keenly')
             chat=False
